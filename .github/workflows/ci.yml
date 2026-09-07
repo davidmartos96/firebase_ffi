@@ -592,6 +592,108 @@ jobs:
       - name: Run the example tours against the emulators
         run: ../../scripts/run_example_tours.sh
 
+  # ── The bindings against the emulators, on the other two desktops ─────
+  # The Linux job above is the thorough one: facade, tours, symbol check. These
+  # run the binding suite alone, because "builds and links" is a weaker claim
+  # than it sounds. Every bug worth catching here so far was in what the SDK
+  # does at runtime -- a use-after-free in a Storage callback, a Remote Config
+  # cache read from a previous run -- and none of it is visible to a linker.
+  #
+  # Two jobs rather than a matrix: each needs its own SDK cache, and the
+  # 'ci: skip windows' label has to skip Windows without taking macOS with it.
+  emulator-macos:
+    name: Emulator tests (macOS)
+    needs: sdk-macos
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: packages/firebase_ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/firebase-sdk
+          key: fbsdk-macos-15-13.12.0-${{ hashFiles('packages/firebase_ffi/patches/firebase-cpp-sdk/common/*.patch', 'packages/firebase_ffi/patches/firebase-cpp-sdk/macos/*.patch', 'scripts/build_firebase_sdk.sh') }}
+          fail-on-cache-miss: true
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      # Same pinning as the Linux job: firebase-tools refuses a JDK older than
+      # 21, and says so only after downloading the emulators.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+      - name: Install the emulator callables
+        working-directory: packages/firebase_ffi/test/emulator/functions
+        run: npm install --no-fund --no-audit
+      - name: Point the package at the SDK
+        run: |
+          python3 - "$HOME/firebase-sdk" <<'EOF'
+          import pathlib, sys
+          p = pathlib.Path('pubspec.yaml')
+          p.write_text(p.read_text().replace(
+              '      with_firebase: false',
+              '      products: [auth, database, firestore, functions, '
+              'storage, remote_config, app_check]\n'
+              f'      firebase_sdk: {sys.argv[1]}'))
+          EOF
+      - run: dart pub get --no-example
+      - name: Run the bindings against the emulators
+        run: ../../scripts/run_emulator_tests.sh
+
+  emulator-windows:
+    name: Emulator tests (Windows)
+    if: "!contains(github.event.pull_request.labels.*.name, 'ci: skip windows')"
+    needs: sdk-windows
+    runs-on: windows-2022
+    defaults:
+      run:
+        # The harness is bash, and Git Bash is what runs it here.
+        shell: bash
+        working-directory: packages/firebase_ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/firebase-sdk
+          key: fbsdk-windows-2022-13.12.0-${{ hashFiles('packages/firebase_ffi/patches/firebase-cpp-sdk/common/*.patch', 'packages/firebase_ffi/patches/firebase-cpp-sdk/windows/*.patch', 'scripts/build_firebase_sdk.sh') }}
+          fail-on-cache-miss: true
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+      - name: Install the emulator callables
+        working-directory: packages/firebase_ffi/test/emulator/functions
+        run: npm install --no-fund --no-audit
+      # python, not python3: the Windows image installs python.exe, and the
+      # SDK job on this runner names it the same way.
+      - name: Point the package at the SDK
+        run: |
+          python - "$HOME/firebase-sdk" <<'EOF'
+          import pathlib, sys
+          p = pathlib.Path('pubspec.yaml')
+          p.write_text(p.read_text().replace(
+              '      with_firebase: false',
+              '      products: [auth, database, firestore, functions, '
+              'storage, remote_config, app_check]\n'
+              f'      firebase_sdk: {sys.argv[1]}'))
+          EOF
+      - run: dart pub get --no-example
+      - name: Run the bindings against the emulators
+        run: ../../scripts/run_emulator_tests.sh
+
   # ── Firebase C++ SDK (macOS) ──────────────────────────────────────────
   # The install rules are shared with Linux now (common/0004); what differs is
   # the linker — ld64 has no --start-group — and the platform's secure store,
