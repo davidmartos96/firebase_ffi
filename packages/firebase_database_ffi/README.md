@@ -9,10 +9,8 @@ package or `firebase_ffi`:
 ```yaml
 dependencies:
   firebase_database: any
-  firebase_core_ffi:
-    path: ../firebase_core_ffi   # registers on Linux
-  firebase_database_ffi:
-    path: ../firebase_database_ffi
+  firebase_core_ffi: ^0.1.0   # registers on Linux
+  firebase_database_ffi: ^0.1.0
 ```
 
 ## What it covers

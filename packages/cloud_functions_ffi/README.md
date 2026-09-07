@@ -9,10 +9,8 @@ package or `firebase_ffi`:
 ```yaml
 dependencies:
   cloud_functions: any
-  firebase_core_ffi:
-    path: ../firebase_core_ffi   # registers on Linux
-  cloud_functions_ffi:
-    path: ../cloud_functions_ffi
+  firebase_core_ffi: ^0.1.0   # registers on Linux
+  cloud_functions_ffi: ^0.1.0
 ```
 
 ## What it covers

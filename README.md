@@ -27,10 +27,8 @@ plugins and its code does not change:
 dependencies:
   firebase_core: ^4.0.0
   cloud_firestore: ^6.0.0
-  firebase_core_ffi:
-    path: ../firebase_core_ffi     # registers on Linux
-  cloud_firestore_ffi:
-    path: ../cloud_firestore_ffi
+  firebase_core_ffi: ^0.1.0      # registers on Linux
+  cloud_firestore_ffi: ^0.1.0
 ```
 
 ```dart
