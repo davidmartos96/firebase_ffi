@@ -9,10 +9,8 @@ package or `firebase_ffi`:
 ```yaml
 dependencies:
   firebase_auth: any
-  firebase_core_ffi:
-    path: ../firebase_core_ffi   # registers on Linux
-  firebase_auth_ffi:
-    path: ../firebase_auth_ffi
+  firebase_core_ffi: ^0.1.0   # registers on Linux
+  firebase_auth_ffi: ^0.1.0
 ```
 
 ## What it covers

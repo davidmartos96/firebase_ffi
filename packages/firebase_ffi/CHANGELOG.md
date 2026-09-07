@@ -45,8 +45,10 @@ First release. Prototype: the API is small and expected to change.
   `.dll`, including a multi-config generator's `Release/` subdirectory) and
   resolves tools on PATH directly rather than shelling out to `which`, which
   does not exist on Windows.
-- Linking the Firebase C++ SDK is guarded to Linux and refuses other platforms
-  at configure time with what a port needs, rather than failing inside the
+- Linking the Firebase C++ SDK is implemented per platform — `--start-group`
+  for GNU ld's archive cycles on Linux, the frameworks ld64 needs on macOS,
+  and the matching MSVC runtime on Windows. A fourth platform is refused at
+  configure time with what a port needs, rather than failing inside the
   linker. A transport-only build has no such dependencies.
 
 ### Notes
@@ -57,5 +59,8 @@ First release. Prototype: the API is small and expected to change.
   falls back to `g++` when the toolchain's clang cannot compile C++20 against
   the system libstdc++ — Flutter's Linux desktop build pins clang 18, which
   cannot parse a GCC 16 libstdc++.
-- Tested on Linux x86-64 and aarch64 (Raspberry Pi 5) against a live project.
-  Windows and macOS are untested.
+- Linux is what runs against a backend: x86-64 in CI against the emulator
+  suite, aarch64 (Raspberry Pi 5) by hand against a live project. macOS and
+  Windows build and link in CI on every change — Windows requires MSVC, since
+  the SDK's archives cannot be linked by MinGW — but nothing exercises them
+  against a backend yet.

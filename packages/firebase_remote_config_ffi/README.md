@@ -9,10 +9,8 @@ package or `firebase_ffi`:
 ```yaml
 dependencies:
   firebase_remote_config: any
-  firebase_core_ffi:
-    path: ../firebase_core_ffi   # registers on Linux
-  firebase_remote_config_ffi:
-    path: ../firebase_remote_config_ffi
+  firebase_core_ffi: ^0.1.0   # registers on Linux
+  firebase_remote_config_ffi: ^0.1.0
 ```
 
 ## What it covers
