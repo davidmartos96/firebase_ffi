@@ -14,13 +14,15 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-/// The four values `initDatabase` needs, plus the bucket for later use.
+/// What the console writes for a project. Only the app id, the key and the
+/// project id are always there; the rest depend on which products the project
+/// has, so they are nullable.
 class GoogleServicesConfig {
   const GoogleServicesConfig({
     required this.appId,
     required this.apiKey,
     required this.projectId,
-    required this.databaseUrl,
+    this.databaseUrl,
     this.storageBucket,
     this.messagingSenderId,
   });
@@ -28,7 +30,12 @@ class GoogleServicesConfig {
   final String appId;
   final String apiKey;
   final String projectId;
-  final String databaseUrl;
+
+  /// Null when the project has no Realtime Database. The console writes
+  /// `firebase_url` only once one exists, and a project using Firestore or
+  /// Auth alone never gets one — so its absence is ordinary, not an error.
+  /// `initDatabase` is where it has to be present.
+  final String? databaseUrl;
   final String? storageBucket;
 
   /// The project number, which is what Firebase calls the messaging sender id.
@@ -107,23 +114,18 @@ class GoogleServicesConfig {
       appId: str(obj(client, 'client_info'), 'mobilesdk_app_id'),
       apiKey: str(keys.first as Map<String, Object?>, 'current_key'),
       projectId: str(info, 'project_id'),
-      // The console writes this only once a Realtime Database exists; its
-      // absence is the actionable diagnosis, so name it.
-      databaseUrl: () {
-        final v = info['firebase_url'];
-        if (v is! String || v.isEmpty) {
-          throw FormatException(
-            '$source: no "firebase_url" — the project has no Realtime '
-            'Database, or the file predates its creation',
-          );
-        }
-        return v;
-      }(),
+      // Absent for a project with no Realtime Database, which is most of
+      // them. Failing here would stop an app that never asks for one.
+      databaseUrl: switch (info['firebase_url']) {
+        final String v when v.isNotEmpty => v,
+        _ => null,
+      },
       storageBucket: info['storage_bucket'] as String?,
       messagingSenderId: info['project_number'] as String?,
     );
   }
 
   @override
-  String toString() => 'GoogleServicesConfig($projectId, $databaseUrl)';
+  String toString() =>
+      'GoogleServicesConfig($projectId, ${databaseUrl ?? 'no database'})';
 }

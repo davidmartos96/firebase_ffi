@@ -195,7 +195,7 @@ initDatabase(
   appId: cfg.appId,
   apiKey: cfg.apiKey,
   projectId: cfg.projectId,
-  databaseUrl: cfg.databaseUrl,
+  databaseUrl: cfg.databaseUrl,  // null when the project has no RTDB
   storageBucket: cfg.storageBucket,  // required before Storage is used
 );
 initAuth();

@@ -40,19 +40,18 @@ void main() {
     expect(c.storageBucket, 'p.firebasestorage.app');
   });
 
-  test('a missing firebase_url names the cause, not just the field', () {
-    // The console omits this until a Realtime Database exists, so the useful
-    // message is about the project, not about JSON.
-    expect(
-      () => GoogleServicesConfig.parse(config(firebaseUrl: null)),
-      throwsA(
-        isA<FormatException>().having(
-          (e) => e.message,
-          'message',
-          contains('no Realtime Database'),
-        ),
-      ),
-    );
+  test('a project with no Realtime Database parses', () {
+    // The console writes firebase_url only once an RTDB exists. Most projects
+    // have none, and refusing the file stopped apps that never wanted one.
+    final c = GoogleServicesConfig.parse(config(firebaseUrl: null));
+    expect(c.databaseUrl, isNull);
+    expect(c.projectId, 'p');
+    expect(c.apiKey, 'AIzaTESTKEY');
+  });
+
+  test('an empty firebase_url reads as absent', () {
+    expect(GoogleServicesConfig.parse(config(firebaseUrl: '')).databaseUrl,
+        isNull);
   });
 
   test('refuses more than one client rather than guessing', () {
