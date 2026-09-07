@@ -75,25 +75,13 @@ jobs:
           EOF
       - run: dart pub get --no-example
 
-      # A full dump (DumpType 2) rather than a mini one: the fault is on a
-      # thread the VM does not own, so the interesting state is other threads'
-      # stacks and the heap the callback was reading.
-      - name: Keep a full crash dump
-        shell: pwsh
-        run: |
-          $d = 'C:\dumps'
-          New-Item -ItemType Directory -Force -Path $d | Out-Null
-          $k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'
-          New-Item -Path $k -Force | Out-Null
-          New-ItemProperty -Path $k -Name DumpFolder -Value $d -PropertyType ExpandString -Force | Out-Null
-          New-ItemProperty -Path $k -Name DumpType -Value 2 -PropertyType DWORD -Force | Out-Null
-          New-ItemProperty -Path $k -Name DumpCount -Value 10 -PropertyType DWORD -Force | Out-Null
-
-      # Expected to fail. Everything after this is the point of the run.
+      # Kept, because the offset in it is the evidence: the Dart VM installs
+      # its own unhandled-exception filter, prints the frame and exits, so the
+      # exception never reaches Windows Error Reporting and no dump is written.
       - name: Reproduce
         id: repro
         continue-on-error: true
-        run: ../../scripts/run_emulator_tests.sh
+        run: ../../scripts/run_emulator_tests.sh 2>&1 | tee "$RUNNER_TEMP/repro.log"
 
       - name: What was built
         if: always()
@@ -102,27 +90,52 @@ jobs:
             ls -l "$f"
           done
 
+      # The crash line names a module and an RVA. With the PDB beside it that
+      # resolves to a function and a line, which is the whole point of the run.
       - name: Symbolize
         if: always()
         shell: pwsh
         run: |
-          $dumps = Get-ChildItem C:\dumps -Filter *.dmp -ErrorAction SilentlyContinue
-          if (-not $dumps) { Write-Host "no dump written -- the crash may not have reached WER"; }
-          $pdb = Get-ChildItem -Recurse -Filter firebase_ffi.pdb .dart_tool -ErrorAction SilentlyContinue |
-                 Select-Object -First 1
-          if ($pdb) { Write-Host "pdb: $($pdb.FullName)" } else { Write-Host "no pdb found" }
+          $log = Join-Path $env:RUNNER_TEMP 'repro.log'
+          $rvas = @()
+          if (Test-Path $log) {
+            $rvas = Select-String -Path $log -Pattern 'firebase_ffi\.dll\+0x([0-9a-fA-F]+)' -AllMatches |
+                    ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+          }
+          if (-not $rvas) { Write-Host 'no firebase_ffi.dll offset in the log -- did it crash?'; exit 0 }
+          Write-Host "offsets: $($rvas -join ', ')"
 
-          # cdb ships with the Windows Kits debuggers when they are installed.
-          $cdb = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe' -ErrorAction SilentlyContinue
-          foreach ($d in $dumps) {
-            Write-Host "=== $($d.FullName) ==="
-            if ($cdb) {
-              $sym = "srv*C:\symbols*https://msdl.microsoft.com/download/symbols"
-              if ($pdb) { $sym = "$($pdb.Directory.FullName);$sym" }
-              & $cdb.FullName -z $d.FullName -y $sym -c '.ecxr; k 40; ~*k 20; q'
-            } else {
-              Write-Host "cdb not present; the dump is uploaded below"
+          $pdb = Get-ChildItem -Recurse -Filter firebase_ffi.pdb .dart_tool -EA SilentlyContinue | Select-Object -First 1
+          $dll = Get-ChildItem -Recurse -Filter firebase_ffi.dll .dart_tool -EA SilentlyContinue |
+                 Where-Object { Test-Path (Join-Path $_.Directory.FullName 'firebase_ffi.pdb') } | Select-Object -First 1
+          if (-not $dll) { $dll = Get-ChildItem -Recurse -Filter firebase_ffi.dll .dart_tool -EA SilentlyContinue | Select-Object -First 1 }
+          Write-Host "pdb: $(if ($pdb) { $pdb.FullName } else { 'none' })"
+          Write-Host "dll: $(if ($dll) { $dll.FullName } else { 'none' })"
+
+          # Whichever resolver the image has. llvm-symbolizer reads the PDB
+          # named by the DLL's debug directory; cdb needs the module loaded.
+          $sym = @(
+            'C:\Program Files\LLVM\bin\llvm-symbolizer.exe',
+            'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\llvm-symbolizer.exe'
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          $cdb = @(
+            'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe',
+            'C:\Program Files\Windows Kits\10\Debuggers\x64\cdb.exe'
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          Write-Host "llvm-symbolizer: $(if ($sym) { $sym } else { 'absent' })"
+          Write-Host "cdb: $(if ($cdb) { $cdb } else { 'absent' })"
+
+          foreach ($rva in $rvas) {
+            Write-Host "=== firebase_ffi.dll+0x$rva ==="
+            if ($sym -and $dll) {
+              & $sym --obj="$($dll.FullName)" --demangle --functions=linkage --inlines "0x$rva"
             }
+            if ($cdb -and $dll) {
+              # Load at a known base so the RVA is an address cdb can name.
+              & $cdb -z "$($dll.FullName)" -y "$($pdb.Directory.FullName)" -c "ln 0x`$(0x10000000+0x$rva); q" 2>&1 |
+                Select-String -Pattern 'firebase_ffi!' -Context 0,1
+            }
+            if (-not $sym -and -not $cdb) { Write-Host 'no resolver on this image; the PDB is uploaded below' }
           }
 
       - name: Keep the evidence
@@ -130,8 +143,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: crash-evidence
+          include-hidden-files: true
           if-no-files-found: warn
           path: |
-            C:/dumps/*.dmp
+            ${{ runner.temp }}/repro.log
             packages/firebase_ffi/.dart_tool/**/firebase_ffi.pdb
             packages/firebase_ffi/.dart_tool/**/firebase_ffi.dll
