@@ -50,8 +50,10 @@ void main() {
   });
 
   test('an empty firebase_url reads as absent', () {
-    expect(GoogleServicesConfig.parse(config(firebaseUrl: '')).databaseUrl,
-        isNull);
+    expect(
+      GoogleServicesConfig.parse(config(firebaseUrl: '')).databaseUrl,
+      isNull,
+    );
   });
 
   test('refuses more than one client rather than guessing', () {
