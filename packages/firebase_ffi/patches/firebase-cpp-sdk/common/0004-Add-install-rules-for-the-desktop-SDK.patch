@@ -241,7 +241,7 @@ new file mode 100644
 index 0000000..2ded2b0
 --- /dev/null
 +++ b/cmake/install_rules.cmake
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,208 @@
 +# Copyright 2026 Google
 +#
 +# Licensed under the Apache License, Version 2.0 (the "License");
@@ -308,8 +308,12 @@ index 0000000..2ded2b0
 +  # table.
 +  # psapi: libuv's uv_getrusage calls GetProcessMemoryInfo, and libuv arrives
 +  # through the Realtime Database stack.
++  # icu: app/src/locale.cc includes <icu.h> on Windows and GetTimezone calls
++  # ucal_getTimeZoneIDForWindowsID. Remote Config is the only caller, so this
++  # goes unnoticed until a build asks for that product and the link fails on
++  # two ICU symbols. Shipped with Windows 10 1703 and later.
 +  set(FIREBASE_SYSTEM_LIBS advapi32 crypt32 ws2_32 iphlpapi userenv secur32
-+                           bcrypt psapi)
++                           bcrypt psapi icu)
 +  # Which C runtime these archives were compiled against. A consumer that picks
 +  # the other one fails at link with LNK2038 naming every object file, so the
 +  # choice is published rather than left for both sides to guess consistently.
