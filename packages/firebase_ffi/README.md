@@ -370,8 +370,8 @@ above is a guess about someone else's layout.
 | --- | --- |
 | Linux x86-64 | tested, host and `emb --target local` |
 | Linux aarch64 | tested on a Raspberry Pi 5, cross-built with emb |
-| macOS 15+ (Apple silicon) | tested in CI: SDK built, linked, 19 symbols exported |
-| Windows (x64, MSVC) | tested in CI: SDK built and linked |
+| macOS 15+ (Apple silicon) | tested in CI: SDK built and linked, binding suite against the emulators |
+| Windows (x64, MSVC) | tested in CI: SDK built and linked. Calling the SDK faults — [#84](https://github.com/jwinarske/firebase_ffi/issues/84) |
 | Android, iOS, web | unsupported — use the official FlutterFire plugins |
 
 The Dart side, the C ABI and the build hook are platform-neutral; the hook
