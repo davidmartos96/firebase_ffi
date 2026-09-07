@@ -54,6 +54,11 @@ using ::firebase::database::ValueListener;
 
 App* g_app = nullptr;
 Database* g_database = nullptr;
+// Whether the app was given a database url. A project with no Realtime
+// Database has none, and the SDK does not refuse the Database in that case --
+// DatabaseInternal::initialized() is app_ != nullptr, so GetInstance hands
+// back an instance whose Repo could not finish setting up.
+bool g_has_database_url = false;
 std::mutex g_mutex;
 
 // ── Variant → a flat tagged buffer ──────────────────────────────────────────
@@ -581,6 +586,7 @@ FDB_EXPORT int64_t fdb_app_init(const char* app_id, const char* api_key,
   // database to name, and an empty url is not the same as a default one.
   if (database_url != nullptr && *database_url != '\0') {
     options.set_database_url(database_url);
+    g_has_database_url = true;
   }
   // Storage derives its bucket from the app, and there is no second chance to
   // supply one: Storage::GetInstance(app) with no bucket set fails the first
@@ -606,6 +612,10 @@ FDB_EXPORT int64_t fdb_app_init(const char* app_id, const char* api_key,
 static Database* EnsureDatabase() {
   if (g_database != nullptr) return g_database;
   if (g_app == nullptr) return nullptr;
+  // Refused here rather than a few frames deeper: without a url the Repo has
+  // nothing to connect to, and the SDK still answers GetInstance with an
+  // instance that accepts calls and never completes them.
+  if (!g_has_database_url) return nullptr;
   firebase::InitResult init_result;
   g_database = Database::GetInstance(g_app, &init_result);
   if (init_result != firebase::kInitResultSuccess) {

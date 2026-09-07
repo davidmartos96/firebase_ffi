@@ -599,11 +599,8 @@ jobs:
   # does at runtime -- a use-after-free in a Storage callback, a Remote Config
   # cache read from a previous run -- and none of it is visible to a linker.
   #
-  # macOS only for now. The same job on Windows links (once ICU is in the
-  # system libs -- see the install-rules patch) and then faults with an access
-  # violation on the SDK's callback thread, in the first Database value round
-  # trip. That is a real bug and its own piece of work -- issue #84 -- because
-  # diagnosing it needs a PDB and a symbolized stack, not a guess per CI cycle.
+  # Two jobs rather than a matrix: each needs its own SDK cache, and the
+  # 'ci: skip windows' label has to skip Windows without taking macOS with it.
   emulator-macos:
     name: Emulator tests (macOS)
     needs: sdk-macos
@@ -637,6 +634,54 @@ jobs:
       - name: Point the package at the SDK
         run: |
           python3 - "$HOME/firebase-sdk" <<'EOF'
+          import pathlib, sys
+          p = pathlib.Path('pubspec.yaml')
+          p.write_text(p.read_text().replace(
+              '      with_firebase: false',
+              '      products: [auth, database, firestore, functions, '
+              'storage, remote_config, app_check]\n'
+              f'      firebase_sdk: {sys.argv[1]}'))
+          EOF
+      - run: dart pub get --no-example
+      - name: Run the bindings against the emulators
+        run: ../../scripts/run_emulator_tests.sh
+
+  emulator-windows:
+    name: Emulator tests (Windows)
+    if: "!contains(github.event.pull_request.labels.*.name, 'ci: skip windows')"
+    needs: sdk-windows
+    runs-on: windows-2022
+    defaults:
+      run:
+        # The harness is bash, and Git Bash is what runs it here.
+        shell: bash
+        working-directory: packages/firebase_ffi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/firebase-sdk
+          key: fbsdk-windows-2022-13.12.0-${{ hashFiles('packages/firebase_ffi/patches/firebase-cpp-sdk/common/*.patch', 'packages/firebase_ffi/patches/firebase-cpp-sdk/windows/*.patch', 'scripts/build_firebase_sdk.sh') }}
+          fail-on-cache-miss: true
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+      - name: Install the emulator callables
+        working-directory: packages/firebase_ffi/test/emulator/functions
+        run: npm install --no-fund --no-audit
+      # python, not python3: the Windows image installs python.exe, and the
+      # SDK job on this runner names it the same way.
+      - name: Point the package at the SDK
+        run: |
+          python - "$HOME/firebase-sdk" <<'EOF'
           import pathlib, sys
           p = pathlib.Path('pubspec.yaml')
           p.write_text(p.read_text().replace(

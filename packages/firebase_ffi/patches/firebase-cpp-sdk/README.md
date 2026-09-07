@@ -39,6 +39,17 @@ compile error inside boringssl rather than the repack that caused it. It is
 common rather than macos-only because the command has no build purpose on any
 platform; the other two were not observed to fail on it.
 
+`common/0009` stops `Repo`'s constructor abandoning setup when it cannot place
+a persistence cache. The return is before `server_sync_tree_` is built and
+nothing else sets it, so the Database is handed out with a null member and the
+first write faults. Windows against the RTDB emulator reaches it: the url is
+`http://127.0.0.1:9000/?ns=<project>`, and `AppDataDir` creates each
+`/`-separated segment as a directory, so `:` and `?` — reserved in NTFS paths —
+fail. The directory is read only under `if (persistence_enabled_)`, which is
+off here, so the abandoned setup was over a path nothing used. Common rather
+than windows-only: the null member is reachable on any platform through the
+same block's other two returns.
+
 The rest sit in `linux/`.
 
 Patches are applied **sorted by filename across both directories**, not
