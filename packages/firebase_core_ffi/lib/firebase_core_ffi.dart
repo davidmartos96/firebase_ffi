@@ -69,7 +69,7 @@ class FirebaseCoreFfi extends FirebasePlatform {
       appId: resolved.appId,
       apiKey: resolved.apiKey,
       projectId: resolved.projectId,
-      databaseUrl: resolved.databaseURL ?? '',
+      databaseUrl: resolved.databaseURL,
       storageBucket: resolved.storageBucket,
     );
 

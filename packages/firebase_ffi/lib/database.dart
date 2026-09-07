@@ -64,7 +64,11 @@ class DbSnapshot {
   bool get isCanceled => seq < 0;
 }
 
-/// Creates the App and Database. Idempotent.
+/// Creates the App. Idempotent.
+///
+/// The Database itself is created on first use, so [databaseUrl] is optional:
+/// a project with no Realtime Database has no `firebase_url` to give, and an
+/// app binding only Auth or Firestore never needs one.
 ///
 /// Throws [StateError] rather than returning a code: a failure here is a
 /// configuration problem the caller cannot proceed past.
@@ -72,7 +76,7 @@ void initDatabase({
   required String appId,
   required String apiKey,
   required String projectId,
-  required String databaseUrl,
+  String? databaseUrl,
   String? storageBucket,
 }) {
   if (!hasFirebase) {
@@ -89,7 +93,9 @@ void initDatabase({
   final a = appId.toNativeUtf8();
   final k = apiKey.toNativeUtf8();
   final p = projectId.toNativeUtf8();
-  final u = databaseUrl.toNativeUtf8();
+  // Empty rather than absent: the native side omits an empty url from the
+  // options, and an app with none simply has no Database to reach.
+  final u = (databaseUrl ?? '').toNativeUtf8();
   // Set on the app or not at all: Storage takes its bucket from the app's
   // options, and an app created without one fails the first operation with an
   // unknown error rather than refusing to initialize.
