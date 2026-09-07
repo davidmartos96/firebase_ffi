@@ -207,6 +207,8 @@ void main(List<String> args) async {
         if (wantsFunctions) '-DFDB_WITH_FUNCTIONS=ON',
         if (wantsRemoteConfig) '-DFDB_WITH_REMOTE_CONFIG=ON',
         if (wantsAppCheck) '-DFDB_WITH_APP_CHECK=ON',
+        // Opt-in debug info for diagnosing a crash in an optimized build.
+        if (input.userDefines['debug_info'] == true) '-DFDB_DEBUG_INFO=ON',
         if (hasNinja) ...['-G', 'Ninja'],
       ]);
     }

@@ -9,6 +9,14 @@ issue_tracker: https://github.com/jwinarske/firebase_ffi/issues
 environment:
   sdk: ^3.9.0
 
+# Declared rather than inferred. pana reads a pure-Dart package's imports and
+# concluded android and ios, which cannot work: the SDK link has no branch for
+# either, and on mobile the official FlutterFire plugins are the implementation.
+platforms:
+  linux:
+  macos:
+  windows:
+
 dependencies:
   # RFC 8949 decoder for the snapshot payloads. A conformant implementation on
   # this side means a malformed message is rejected by code this project did
