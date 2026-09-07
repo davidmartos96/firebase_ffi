@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.1.1
+
+### Fixed
+
+- `GoogleServicesConfig.parse` no longer requires `firebase_url`. The console
+  writes that key only once a Realtime Database exists, so a project using Auth
+  or Firestore alone could not read its own config. `databaseUrl` is `String?`,
+  like the bucket beside it, and `initDatabase` takes it as optional.
+- Windows: linking Remote Config failed on two ICU symbols. `app/src/locale.cc`
+  includes `<icu.h>` there, and `GetTimezone` is reached only from Remote
+  Config, so no earlier Windows build had pulled the object in. `icu` joins the
+  system libraries the SDK publishes through its package config.
+- Windows: the first Realtime Database write faulted. `Repo`'s constructor
+  abandoned setup when it could not create a directory named after the database
+  url — against the emulator that name holds `:` and `?`, both reserved in NTFS
+  paths — and returned before `server_sync_tree_` was built, leaving a null
+  member behind a Database the SDK still handed out. The cache directory is now
+  worked out only when persistence is enabled, which is off here.
+- An app initialized with no database url is refused by the Database rather
+  than accepting writes it can never deliver.
+
+### Added
+
+- `hooks.user_defines.firebase_ffi.debug_info` emits debug info beside the
+  optimized build: a PDB under MSVC, `-g` elsewhere. Off by default.
+- `platforms:` names linux, macos and windows. pub.dev inferred android and ios
+  from the imports; neither can work, and on mobile the official FlutterFire
+  plugins are the implementation.
+
+### Notes
+
+- The binding suite runs against the emulator suite on all three desktops now,
+  not only Linux. Both Windows bugs above were found that way, within an hour
+  of each other.
+
 ## 0.1.0
 
 First release. Prototype: the API is small and expected to change.
