@@ -49,6 +49,24 @@ set_target_properties(firebase_ffi PROPERTIES
 find_package(Threads REQUIRED)
 target_link_libraries(firebase_ffi PRIVATE Threads::Threads)
 
+# Debug info in an otherwise optimized build, so a crash in a released
+# configuration resolves to a function and a line instead of a module offset.
+# Off by default: it costs a PDB the size of the library and nothing else.
+option(FDB_DEBUG_INFO "Emit debug info alongside the optimized build" OFF)
+if(FDB_DEBUG_INFO)
+  if(MSVC)
+    # /Zi puts the symbols in a PDB; /DEBUG makes the linker write and keep it.
+    # /OPT:REF and /OPT:ICF are the Release defaults that /DEBUG turns off, so
+    # they are named again -- otherwise the instrumented library is not the one
+    # the crash happened in.
+    target_compile_options(firebase_ffi PRIVATE /Zi)
+    target_link_options(firebase_ffi PRIVATE /DEBUG /OPT:REF /OPT:ICF)
+  else()
+    target_compile_options(firebase_ffi PRIVATE -g)
+  endif()
+endif()
+
+
 # A shared library links by default even when symbols are left unresolved, and
 # the loader is then the first thing to complain -- on the target, at dlopen.
 # An SDK built with the wrong libstdc++ ABI produced exactly that: a library

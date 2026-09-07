@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: 2026 Joel Winarske
+# SPDX-License-Identifier: Apache-2.0
+#
+# Investigation harness for #84: the binding suite links on Windows and then
+# faults with an access violation on the SDK's callback thread.
+#
+# Dispatch-only, and expected to fail. It is not part of CI: the point is the
+# evidence it leaves behind, not a pass. The emulator-windows job comes back to
+# ci.yml once the crash is fixed.
+#
+# What this adds over the job that found the crash: the library is built with
+# debug info, Windows Error Reporting is told to keep a full dump, and the dump
+# is symbolized here and uploaded. A stack names a function; "firebase_ffi.dll
+# +0x9b1ab" names nothing.
+name: Windows crash (#84)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  crash:
+    name: Reproduce and symbolize
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+        working-directory: packages/firebase_ffi
+    steps:
+      - name: Enable long-path support
+        shell: pwsh
+        working-directory: .
+        run: |
+          git config --system core.longpaths true
+          New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+            -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force | Out-Null
+      - uses: actions/checkout@v4
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/firebase-sdk
+          key: fbsdk-windows-2022-13.12.0-${{ hashFiles('packages/firebase_ffi/patches/firebase-cpp-sdk/common/*.patch', 'packages/firebase_ffi/patches/firebase-cpp-sdk/windows/*.patch', 'scripts/build_firebase_sdk.sh') }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        name: Build the SDK
+        working-directory: .
+        env:
+          PYTHON: python
+        run: |
+          command -v go >/dev/null || choco install golang -y --no-progress
+          scripts/build_firebase_sdk.sh "$HOME/firebase-sdk"
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+      - name: Install the emulator callables
+        working-directory: packages/firebase_ffi/test/emulator/functions
+        run: npm install --no-fund --no-audit
+
+      # debug_info keeps a PDB beside the optimized library. Without it the
+      # crash resolves to an offset and the dump is no better than the log.
+      - name: Point the package at the SDK, with debug info
+        run: |
+          python - "$HOME/firebase-sdk" <<'EOF'
+          import pathlib, sys
+          p = pathlib.Path('pubspec.yaml')
+          p.write_text(p.read_text().replace(
+              '      with_firebase: false',
+              '      products: [auth, database, firestore, functions, '
+              'storage, remote_config, app_check]\n'
+              '      debug_info: true\n'
+              f'      firebase_sdk: {sys.argv[1]}'))
+          EOF
+      - run: dart pub get --no-example
+
+      # A full dump (DumpType 2) rather than a mini one: the fault is on a
+      # thread the VM does not own, so the interesting state is other threads'
+      # stacks and the heap the callback was reading.
+      - name: Keep a full crash dump
+        shell: pwsh
+        run: |
+          $d = 'C:\dumps'
+          New-Item -ItemType Directory -Force -Path $d | Out-Null
+          $k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'
+          New-Item -Path $k -Force | Out-Null
+          New-ItemProperty -Path $k -Name DumpFolder -Value $d -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty -Path $k -Name DumpType -Value 2 -PropertyType DWORD -Force | Out-Null
+          New-ItemProperty -Path $k -Name DumpCount -Value 10 -PropertyType DWORD -Force | Out-Null
+
+      # Expected to fail. Everything after this is the point of the run.
+      - name: Reproduce
+        id: repro
+        continue-on-error: true
+        run: ../../scripts/run_emulator_tests.sh
+
+      - name: What was built
+        if: always()
+        run: |
+          find .dart_tool -name 'firebase_ffi.dll' -o -name 'firebase_ffi.pdb' | while read f; do
+            ls -l "$f"
+          done
+
+      - name: Symbolize
+        if: always()
+        shell: pwsh
+        run: |
+          $dumps = Get-ChildItem C:\dumps -Filter *.dmp -ErrorAction SilentlyContinue
+          if (-not $dumps) { Write-Host "no dump written -- the crash may not have reached WER"; }
+          $pdb = Get-ChildItem -Recurse -Filter firebase_ffi.pdb .dart_tool -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+          if ($pdb) { Write-Host "pdb: $($pdb.FullName)" } else { Write-Host "no pdb found" }
+
+          # cdb ships with the Windows Kits debuggers when they are installed.
+          $cdb = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe' -ErrorAction SilentlyContinue
+          foreach ($d in $dumps) {
+            Write-Host "=== $($d.FullName) ==="
+            if ($cdb) {
+              $sym = "srv*C:\symbols*https://msdl.microsoft.com/download/symbols"
+              if ($pdb) { $sym = "$($pdb.Directory.FullName);$sym" }
+              & $cdb.FullName -z $d.FullName -y $sym -c '.ecxr; k 40; ~*k 20; q'
+            } else {
+              Write-Host "cdb not present; the dump is uploaded below"
+            }
+          }
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-evidence
+          if-no-files-found: warn
+          path: |
+            C:/dumps/*.dmp
+            packages/firebase_ffi/.dart_tool/**/firebase_ffi.pdb
+            packages/firebase_ffi/.dart_tool/**/firebase_ffi.dll
