@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.1
+
+### Fixed
+
+- A project with no Realtime Database initializes. `databaseURL` reaches the
+  binding as null rather than as an empty string, which is what the console
+  writes for a project that has none.
+
+### Changed
+
+- Requires `firebase_ffi` ^0.1.1, which carries the config fix above and the
+  Windows Database fix.
+- The README installs from pub.dev rather than from a path.
+
 ## 0.1.0
 
 First release. Prototype: the API follows the platform interface, but the
