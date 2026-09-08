@@ -85,6 +85,14 @@ void main() {
     expect(FirebaseAuth.instance.currentUser?.uid, cred.user!.uid);
   });
 
+  test('signWithCredential email', () async {
+    final cred = await FirebaseAuth.instance.signInWithCredential(EmailAuthProvider.credential(email: "a@example.com", password: "aaa"));
+
+    expect(cred.user, isNotNull);
+    expect(cred.user!.uid, isNotEmpty);
+    expect(FirebaseAuth.instance.currentUser?.uid, cred.user!.uid);
+  });
+
   test('a fresh sign-in answers an ID token', () async {
     final cred = await FirebaseAuth.instance.signInAnonymously();
 

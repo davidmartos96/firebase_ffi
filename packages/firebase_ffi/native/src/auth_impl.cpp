@@ -21,7 +21,9 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <iostream>
 
+#include "cbor.h"
 #include "dart_api_dl.h"
 #include "firebase_bridge.h"
 
@@ -72,6 +74,8 @@ void PostAuthResult(Dart_Port_DL port, bool ok, int code,
 // Shared completion for both sign-in paths.
 void OnSignInComplete(const firebase::Future<AuthResult>& future,
                       void* user_data) {
+
+  std::cout << "SIGN IN COMPLETED" << std::endl;
   const auto port = reinterpret_cast<intptr_t>(user_data);
   if (future.error() != 0) {
     PostAuthResult(static_cast<Dart_Port_DL>(port), false, future.error(),
@@ -86,6 +90,164 @@ void OnSignInComplete(const firebase::Future<AuthResult>& future,
     uid = result->user.uid();
   }
   PostAuthResult(static_cast<Dart_Port_DL>(port), true, 0, "", uid);
+}
+
+bool BuildCredential(const uint8_t *data, size_t data_len,
+                     firebase::auth::Credential *out) {
+
+  if (out == nullptr) {
+    return false;
+  }
+
+  CborParser parser;
+  CborValue root;
+
+  std::cout << "parser init" << std::endl;
+  CborError err = cbor_parser_init(data, data_len, 0, &parser, &root);
+  std::cout << "parser init done " << err << std::endl;
+  
+  if (err != CborNoError || !cbor_value_is_map(&root)) {
+    std::cout << "no map" << std::endl;
+    return false;
+  }
+  
+  CborValue it;
+  err = cbor_value_enter_container(&root, &it);
+  
+  if (err != CborNoError) {
+    return false;
+  }
+  std::cout << "cbor_value_enter_container done" << std::endl;
+  
+  std::string provider_id;
+  std::string email;
+  std::string secret;
+  std::string id_token;
+  std::string access_token;
+  
+  while (!cbor_value_at_end(&it)) {
+    // Key
+    if (!cbor_value_is_text_string(&it)) {
+        return false;
+    }
+
+    char* key = nullptr;
+    size_t key_len = 0;
+
+    err = cbor_value_dup_text_string(
+        &it,
+        &key,
+        &key_len,
+        nullptr
+    );
+
+    if (err != CborNoError || key == nullptr) {
+        return false;
+    }
+
+    std::cout << "map key: " << key << std::endl;
+
+    cbor_value_advance(&it);
+
+    if (cbor_value_is_null(&it)) {
+        free(key);
+        cbor_value_advance(&it);
+        continue;
+    }
+
+    // Value
+    if (!cbor_value_is_text_string(&it)) {
+        free(key);
+        return false;
+    }
+
+    char* value = nullptr;
+    size_t value_len = 0;
+
+    err = cbor_value_dup_text_string(
+        &it,
+        &value,
+        &value_len,
+        nullptr
+    );
+
+    if (err != CborNoError) {
+        free(key);
+        return false;
+    }
+
+    if (value != nullptr) {
+
+      
+      std::cout << "map value: " << value << std::endl;
+      
+      // Dispatch
+      if (strcmp(key, "providerId") == 0) {
+        provider_id = value;
+      }
+      else if (strcmp(key, "email") == 0) {
+        email = value;
+      }
+      else if (strcmp(key, "secret") == 0) {
+        secret = value;
+      }
+      else if (strcmp(key, "idToken") == 0) {
+        id_token = value;
+      }
+      else if (strcmp(key, "accessToken") == 0) {
+        access_token = value;
+      }
+    }
+      
+      free(key);
+      free(value);
+      
+      cbor_value_advance(&it);
+    }
+    
+  std::cout << "end while" << std::endl;
+
+  err = cbor_value_leave_container(&root, &it);
+
+  if (err != CborNoError) {
+    return false;
+  }
+
+  // Password
+  if (provider_id == "password") {
+    if (email.empty() || secret.empty()) {
+      return false;
+    }
+
+    *out = firebase::auth::EmailAuthProvider::GetCredential(email.c_str(),
+                                                            secret.c_str());
+    return true;
+  }
+
+  // Google
+  if (provider_id == "google") {
+    if (id_token.empty()) {
+      return false;
+    }
+
+    *out = firebase::auth::GoogleAuthProvider::GetCredential(
+        id_token.c_str(),
+        access_token.empty() ? nullptr : access_token.c_str());
+    return true;
+  }
+
+  // Facebook
+  if (provider_id == "facebook") {
+    if (access_token.empty()) {
+      return false;
+    }
+
+    *out = firebase::auth::FacebookAuthProvider::GetCredential(
+        access_token.c_str());
+    return true;
+  }
+
+  return false;
 }
 
 }  // namespace
@@ -140,6 +302,29 @@ FDB_EXPORT int64_t fdb_auth_sign_in_with_custom_token(const char* token,
     return -2;
   }
   g_auth->SignInWithCustomToken(token).OnCompletion(
+      OnSignInComplete, reinterpret_cast<void*>(static_cast<intptr_t>(port)));
+  return 0;
+}
+
+FDB_EXPORT int64_t fdb_auth_sign_in_with_credential(const uint8_t* spec, size_t spec_len, int64_t port) {
+  std::cout << "HEHEHE" << std::endl;
+  std::cout << spec_len << std::endl;
+
+
+  std::lock_guard<std::mutex> lock(g_auth_mutex);
+  if (g_auth == nullptr) {
+    return -1;
+  }
+  
+  firebase::auth::Credential credential;
+  if (!BuildCredential(spec, spec_len, &credential)) {
+    std::cout << "failed to build credential" << std::endl;
+    return -2;
+  }
+  
+  std::cout << "credential built" << std::endl;
+
+  g_auth->SignInAndRetrieveDataWithCredential(credential).OnCompletion(
       OnSignInComplete, reinterpret_cast<void*>(static_cast<intptr_t>(port)));
   return 0;
 }
