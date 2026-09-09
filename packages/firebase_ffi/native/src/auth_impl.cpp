@@ -81,8 +81,6 @@ void PostAuthResult(Dart_Port_DL port, bool ok, int code,
 // Shared completion for both sign-in paths.
 void OnSignInComplete(const firebase::Future<AuthResult>& future,
                       void* user_data) {
-
-  std::cout << "SIGN IN COMPLETED" << std::endl;
   const auto port = reinterpret_cast<intptr_t>(user_data);
   if (future.error() != 0) {
     PostAuthResult(static_cast<Dart_Port_DL>(port), false, future.error(),
@@ -315,6 +313,27 @@ FDB_EXPORT int64_t fdb_auth_sign_out(void) {
     return -1;
   }
   g_auth->SignOut();
+  return 0;
+}
+
+FDB_EXPORT int64_t fdb_auth_create_user_with_email_and_password(
+    const char *email, const char *password, int64_t port) {
+  std::lock_guard<std::mutex> lock(g_auth_mutex);
+  if (g_auth == nullptr) {
+    return -1;
+  }
+
+  if (email == nullptr || *email == '\0') {
+    return -2;
+  }
+
+  if (password == nullptr || *password == '\0') {
+    return -2;
+  }
+
+  g_auth->CreateUserWithEmailAndPassword(email, password)
+      .OnCompletion(OnSignInComplete,
+                    reinterpret_cast<void *>(static_cast<intptr_t>(port)));
   return 0;
 }
 

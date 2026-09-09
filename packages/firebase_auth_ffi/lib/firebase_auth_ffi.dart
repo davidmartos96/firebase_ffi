@@ -114,6 +114,12 @@ class FirebaseAuthFfi extends FirebaseAuthPlatform {
   });
 
   @override
+  Future<UserCredentialPlatform> createUserWithEmailAndPassword(
+    String email,
+    String password,
+  ) => _signIn(() => fdb.createUserWithEmailAndPassword(email, password));
+
+  @override
   Future<void> signOut() async {
     // Not _ensureAuth(): signing out when Auth was never initialized has
     // nothing to undo, and initializing it in order to do nothing would turn a
