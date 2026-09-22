@@ -119,7 +119,7 @@ void main() {
       FirebaseAuth.instance.signInWithCredential(
         EmailAuthProvider.credential(email: email, password: 'wrong'),
       ),
-      throwsA(isA<FirebaseAuthException>())
+      throwsA(isA<FirebaseAuthException>()),
       // TODO: User proper error codes, like in the Flutter plugins: "wrong-password", etc...
       //.having((e) => e.code, 'code', "wrong-password")),
     );
