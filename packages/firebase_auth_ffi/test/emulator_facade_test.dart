@@ -123,6 +123,31 @@ void main() {
       // TODO: User proper error codes, like in the Flutter plugins: "wrong-password", etc...
       //.having((e) => e.code, 'code', "wrong-password")),
     );
+
+    // Empty values sent to the SDK
+    await expectLater(
+      FirebaseAuth.instance.signInWithCredential(
+        EmailAuthProvider.credential(email: '', password: ''),
+      ),
+      throwsA(isA<FirebaseAuthException>()),
+      // TODO: User proper error codes, like in the Flutter plugins: "wrong-password", etc...
+      //.having((e) => e.code, 'code', "wrong-password")),
+    );
+  });
+
+  test('google credential', () async {
+    // Doesn't throw StateError
+    await expectLater(
+      FirebaseAuth.instance.signInWithCredential(
+        GoogleAuthProvider.credential(
+          accessToken: "my-access-token",
+          idToken: "my-id-token",
+        ),
+      ),
+      // TODO: User proper error codes, like in the Flutter plugins: "wrong-password", etc...
+      //.having((e) => e.code, 'code', "wrong-password")),
+      throwsA(isA<FirebaseAuthException>()),
+    );
   });
 
   test('a fresh sign-in answers an ID token', () async {
