@@ -167,6 +167,8 @@ Future<AuthOutcome> signInWithCustomToken(String token) {
   ).whenComplete(() => calloc.free(t));
 }
 
+/// Sign in with a credential. The input map requires `providerId` and then it accepts
+/// different fields based on the provider: `idToken`, `accessToken`, `email`, `secret`, `rawNonce`
 Future<AuthOutcome> signInWithCredential(Map<String, Object?> map) {
   final encoded = cborEncode(CborValue(map));
   final buf = calloc<Uint8>(encoded.length);

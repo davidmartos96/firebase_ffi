@@ -5,7 +5,7 @@
 ///
 /// What the C++ SDK gives us on desktop is a subset of what the plugin
 /// exposes: anonymous and custom-token sign-in, sign-out, the current user,
-/// sign in with some providers (password, google, twitter...)
+/// sign in with some providers (password, google, twitter...), create user with email+password,
 /// and the emulator. Everything else keeps the platform interface's own
 /// `UnimplementedError`, which names the method that is missing rather than
 /// failing somewhere further down.
@@ -109,12 +109,15 @@ class FirebaseAuthFfi extends FirebaseAuthPlatform {
   Future<UserCredentialPlatform> signInWithCredential(
     AuthCredential credential,
   ) async {
-    final firebaseFFISupportedProvider = _kSupportedProviderIds[credential.providerId];
+    final firebaseFFISupportedProvider =
+        _kSupportedProviderIds[credential.providerId];
 
     // If null, it means it's not a default supported Firebase Oauth provider. It could be a different
     // provider handled by the user, so only reject explicitly unimplemented providers
     if (firebaseFFISupportedProvider == false) {
-      throw UnimplementedError('The provider ${credential.providerId} is not supported by firebase_ffi.');
+      throw UnimplementedError(
+        'The provider ${credential.providerId} is not supported by firebase_ffi.',
+      );
     }
 
     return await _signIn(() async {

@@ -169,10 +169,17 @@ Future<void> _tour() async {
   _step('what this implementation does not do');
 
   try {
-    await auth.setLanguageCode("it");
+    await auth.signInWithCredential(
+      PhoneAuthProvider.credential(
+        verificationId: "verification",
+        smsCode: "sms",
+      ),
+    );
     _note('unexpectedly implemented');
   } on UnimplementedError catch (e) {
-    _note('setLanguageCode -> UnimplementedError: ${e.message}');
+    _note(
+      'signInWithCredential(PhoneAuthCredential) -> UnimplementedError: ${e.message}',
+    );
   }
   _note(
     'a missing method names itself, rather than failing somewhere else '

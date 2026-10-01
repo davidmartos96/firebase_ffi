@@ -168,7 +168,10 @@ void main() {
     // Unimplemented in the ffi plugin
     await expectLater(
       FirebaseAuth.instance.signInWithCredential(
-        PhoneAuthProvider.credential(verificationId: "my-verification", smsCode: "my-sms-code"),
+        PhoneAuthProvider.credential(
+          verificationId: "my-verification",
+          smsCode: "my-sms-code",
+        ),
       ),
       throwsA(isA<UnimplementedError>()),
     );
