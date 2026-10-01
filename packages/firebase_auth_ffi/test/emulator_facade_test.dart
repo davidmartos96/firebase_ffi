@@ -86,7 +86,7 @@ void main() {
   });
 
   test('signInWithCredential email', () async {
-    const email = "a@example.com";
+    final email = "a_${DateTime.now().microsecondsSinceEpoch}@example.com";
     const password = "my-secure-password";
     final String createdUserId;
     {
