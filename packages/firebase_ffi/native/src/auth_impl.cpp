@@ -18,6 +18,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -39,10 +40,10 @@ Auth* g_auth = nullptr;
 
 struct CredentialData {
   std::string provider_id;
-  std::string email;
-  std::string secret;
-  std::string id_token;
-  std::string access_token;
+  std::optional<std::string> email;
+  std::optional<std::string> secret;
+  std::optional<std::string> id_token;
+  std::optional<std::string> access_token;
 };
 
 // Posts `{ok, code, message, uid}` as a small message. Not external typed data:
@@ -118,6 +119,32 @@ bool ReadCborString(CborValue* value, std::string* out) {
   return true;
 }
 
+bool ReadCborOptionalString(CborValue* value, std::optional<std::string>* out) {
+  if (cbor_value_is_null(value)) {
+    *out = std::nullopt;
+    return true;
+  }
+
+  if (!cbor_value_is_text_string(value)) {
+    return false;
+  }
+
+  char* buffer = nullptr;
+  size_t length = 0;
+
+  const CborError err =
+      cbor_value_dup_text_string(value, &buffer, &length, nullptr);
+
+  if (err != CborNoError) {
+    return false;
+  }
+
+  out->emplace(buffer, length);
+  free(buffer);
+
+  return true;
+}
+
 bool ParseCredentialData(const uint8_t* data,
                                 size_t data_len,
                                 CredentialData* credential) {
@@ -161,19 +188,19 @@ bool ParseCredentialData(const uint8_t* data,
         return false;
       }
     } else if (key == "email") {
-      if (!ReadCborString(&it, &credential->email)) {
+      if (!ReadCborOptionalString(&it, &credential->email)) {
         return false;
       }
     } else if (key == "secret") {
-      if (!ReadCborString(&it, &credential->secret)) {
+      if (!ReadCborOptionalString(&it, &credential->secret)) {
         return false;
       }
     } else if (key == "idToken") {
-      if (!ReadCborString(&it, &credential->id_token)) {
+      if (!ReadCborOptionalString(&it, &credential->id_token)) {
         return false;
       }
     } else if (key == "accessToken") {
-      if (!ReadCborString(&it, &credential->access_token)) {
+      if (!ReadCborOptionalString(&it, &credential->access_token)) {
         return false;
       }
     } else {
@@ -205,26 +232,29 @@ bool BuildCredential(const uint8_t *data, size_t data_len,
   }
 
   if (credential.provider_id == "password") {
-    if (credential.email.empty() || credential.secret.empty()) {
+    if (!credential.email.has_value() || !credential.secret.has_value()) {
       return false;
     }
 
     *out = firebase::auth::EmailAuthProvider::GetCredential(
-        credential.email.c_str(), credential.secret.c_str());
+        credential.email.value().c_str(), credential.secret.value().c_str());
 
     return true;
   }
 
   if (credential.provider_id == "google.com") {
     // It accepts idToken or accessToken
-    if (credential.id_token.empty() && credential.access_token.empty()) {
+    if (!credential.id_token.has_value() &&
+        !credential.access_token.has_value()) {
       return false;
     }
 
     *out = firebase::auth::GoogleAuthProvider::GetCredential(
-        credential.id_token.empty() ? nullptr : credential.id_token.c_str(),
-        credential.access_token.empty() ? nullptr
-                                        : credential.access_token.c_str());
+        !credential.id_token.has_value() ? nullptr
+                                         : credential.id_token.value().c_str(),
+        !credential.access_token.has_value()
+            ? nullptr
+            : credential.access_token.value().c_str());
 
     return true;
   }

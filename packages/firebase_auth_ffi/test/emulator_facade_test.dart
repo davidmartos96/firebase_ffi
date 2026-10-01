@@ -85,7 +85,7 @@ void main() {
     expect(FirebaseAuth.instance.currentUser?.uid, cred.user!.uid);
   });
 
-  test('signWithCredential email', () async {
+  test('signInWithCredential email', () async {
     const email = "a@example.com";
     const password = "my-secure-password";
     final String createdUserId;
