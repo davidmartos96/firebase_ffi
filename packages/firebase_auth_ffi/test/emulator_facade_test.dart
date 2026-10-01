@@ -104,6 +104,20 @@ void main() {
     expect(FirebaseAuth.instance.currentUser, null);
 
     {
+      // Sign in after sign up
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      expect(cred.user, isNotNull);
+      expect(cred.user!.uid, createdUserId);
+      expect(FirebaseAuth.instance.currentUser?.uid, createdUserId);
+      await FirebaseAuth.instance.signOut();
+    }
+
+    {
+      // Sign in with credential also works
       final cred = await FirebaseAuth.instance.signInWithCredential(
         EmailAuthProvider.credential(email: email, password: password),
       );

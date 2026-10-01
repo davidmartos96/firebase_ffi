@@ -106,9 +106,15 @@ class FirebaseAuthFfi extends FirebaseAuthPlatform {
       _signIn(() => fdb.signInWithCustomToken(token));
 
   @override
-  Future<UserCredentialPlatform> signInWithEmailAndPassword(String email, String password) {
-    return signInWithCredential(EmailAuthProvider.credential(email: email, password: password));
+  Future<UserCredentialPlatform> signInWithEmailAndPassword(
+    String email,
+    String password,
+  ) {
+    return signInWithCredential(
+      EmailAuthProvider.credential(email: email, password: password),
+    );
   }
+
   @override
   Future<UserCredentialPlatform> signInWithCredential(
     AuthCredential credential,
