@@ -253,22 +253,40 @@ bool BuildCredential(const uint8_t *data, size_t data_len,
                               ? nullptr
                               : credential.raw_nonce.value().c_str();
 
-  if (credential.provider_id == "password") {
+  if (credential.provider_id ==
+      firebase::auth::EmailAuthProvider::kProviderId) {
     if (!email || !secret) {
       return false;
     }
 
     *out = firebase::auth::EmailAuthProvider::GetCredential(email, secret);
     return true;
-  } else if (credential.provider_id == "google.com") {
+  } else if (credential.provider_id ==
+             firebase::auth::GoogleAuthProvider::kProviderId) {
     // It accepts idToken or accessToken
-    if (!id_token && !access_token) {
+    if (!id_token && !access_token)
       return false;
-    }
-
     *out = firebase::auth::GoogleAuthProvider::GetCredential(id_token,
                                                              access_token);
-
+    return true;
+  } else if (credential.provider_id ==
+             firebase::auth::FacebookAuthProvider::kProviderId) {
+    if (!access_token)
+      return false;
+    *out = firebase::auth::FacebookAuthProvider::GetCredential(access_token);
+    return true;
+  } else if (credential.provider_id ==
+             firebase::auth::GitHubAuthProvider::kProviderId) {
+    if (!access_token)
+      return false;
+    *out = firebase::auth::GitHubAuthProvider::GetCredential(access_token);
+    return true;
+  } else if (credential.provider_id ==
+             firebase::auth::TwitterAuthProvider::kProviderId) {
+    if (!access_token && !secret)
+      return false;
+    *out = firebase::auth::TwitterAuthProvider::GetCredential(access_token,
+                                                              secret);
     return true;
   } else { // Generic OAuth
     if (!id_token) {
