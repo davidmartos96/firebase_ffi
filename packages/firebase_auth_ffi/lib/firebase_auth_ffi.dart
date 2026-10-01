@@ -5,6 +5,7 @@
 ///
 /// What the C++ SDK gives us on desktop is a subset of what the plugin
 /// exposes: anonymous and custom-token sign-in, sign-out, the current user,
+/// sign in with some providers (password, google, twitter...)
 /// and the emulator. Everything else keeps the platform interface's own
 /// `UnimplementedError`, which names the method that is missing rather than
 /// failing somewhere further down.
@@ -250,15 +251,15 @@ class _FfiUserCredential extends UserCredentialPlatform {
 }
 
 final _kSupportedProviderIds = <String, bool>{
-  AppleAuthProvider.PROVIDER_ID: false,
+  AppleAuthProvider.PROVIDER_ID: true,
   EmailAuthProvider.PROVIDER_ID: true,
-  FacebookAuthProvider.PROVIDER_ID: false,
+  FacebookAuthProvider.PROVIDER_ID: true,
   GameCenterAuthProvider.PROVIDER_ID: false,
-  GithubAuthProvider.PROVIDER_ID: false,
+  GithubAuthProvider.PROVIDER_ID: true,
   GoogleAuthProvider.PROVIDER_ID: true,
   MicrosoftAuthProvider.PROVIDER_ID: false,
   PhoneAuthProvider.PROVIDER_ID: false,
   PlayGamesAuthProvider.PROVIDER_ID: false,
-  TwitterAuthProvider.PROVIDER_ID: false,
+  TwitterAuthProvider.PROVIDER_ID: true,
   YahooAuthProvider.PROVIDER_ID: false,
 };
