@@ -150,6 +150,30 @@ void main() {
     );
   });
 
+  test('unsupported credential', () async {
+    await expectLater(
+      FirebaseAuth.instance.signInWithCredential(
+        OAuthCredential(
+          providerId: "unknown.com",
+          signInMethod: "unknown.com",
+          idToken: "my-id-token",
+          accessToken: "my-access-token",
+        ),
+      ),
+      // TODO: User proper error codes, like in the Flutter plugins: "wrong-password", etc...
+      //.having((e) => e.code, 'code', "wrong-password")),
+      throwsA(isA<FirebaseAuthException>()),
+    );
+
+    // Unimplemented in the ffi plugin
+    await expectLater(
+      FirebaseAuth.instance.signInWithCredential(
+        FacebookAuthProvider.credential("my-access-token"),
+      ),
+      throwsA(isA<UnimplementedError>()),
+    );
+  });
+
   test('a fresh sign-in answers an ID token', () async {
     final cred = await FirebaseAuth.instance.signInAnonymously();
 

@@ -107,11 +107,21 @@ class FirebaseAuthFfi extends FirebaseAuthPlatform {
   @override
   Future<UserCredentialPlatform> signInWithCredential(
     AuthCredential credential,
-  ) => _signIn(() async {
-    final credMap = credential.asMap();
-    // print(credMap);
-    return await fdb.signInWithCredential(credMap);
-  });
+  ) async {
+    final firebaseFFISupportedProvider = _kSupportedProviderIds[credential.providerId];
+
+    // If null, it means it's not a default supported Firebase Oauth provider. It could be a different
+    // provider handled by the user, so only reject explicitly unimplemented providers
+    if (firebaseFFISupportedProvider == false) {
+      throw UnimplementedError('The provider ${credential.providerId} is not supported by firebase_ffi.');
+    }
+
+    return await _signIn(() async {
+      final credMap = credential.asMap();
+      // print(credMap);
+      return await fdb.signInWithCredential(credMap);
+    });
+  }
 
   @override
   Future<UserCredentialPlatform> createUserWithEmailAndPassword(
@@ -238,3 +248,17 @@ class _FfiUserCredential extends UserCredentialPlatform {
   _FfiUserCredential(FirebaseAuthPlatform auth, UserPlatform user)
     : super(auth: auth, user: user);
 }
+
+final _kSupportedProviderIds = <String, bool>{
+  AppleAuthProvider.PROVIDER_ID: false,
+  EmailAuthProvider.PROVIDER_ID: true,
+  FacebookAuthProvider.PROVIDER_ID: false,
+  GameCenterAuthProvider.PROVIDER_ID: false,
+  GithubAuthProvider.PROVIDER_ID: false,
+  GoogleAuthProvider.PROVIDER_ID: true,
+  MicrosoftAuthProvider.PROVIDER_ID: false,
+  PhoneAuthProvider.PROVIDER_ID: false,
+  PlayGamesAuthProvider.PROVIDER_ID: false,
+  TwitterAuthProvider.PROVIDER_ID: false,
+  YahooAuthProvider.PROVIDER_ID: false,
+};

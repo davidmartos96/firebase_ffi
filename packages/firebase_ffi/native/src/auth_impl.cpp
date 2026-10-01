@@ -44,6 +44,7 @@ struct CredentialData {
   std::optional<std::string> secret;
   std::optional<std::string> id_token;
   std::optional<std::string> access_token;
+  std::optional<std::string> raw_nonce;
 };
 
 // Posts `{ok, code, message, uid}` as a small message. Not external typed data:
@@ -203,6 +204,10 @@ bool ParseCredentialData(const uint8_t* data,
       if (!ReadCborOptionalString(&it, &credential->access_token)) {
         return false;
       }
+    } else if (key == "rawNonce") {
+      if (!ReadCborOptionalString(&it, &credential->raw_nonce)) {
+        return false;
+      }
     } else {
       // Unknown field.
       //
@@ -231,30 +236,56 @@ bool BuildCredential(const uint8_t *data, size_t data_len,
     return false;
   }
 
+  const char *provider_id = credential.provider_id.c_str();
+  const char *email = !credential.email.has_value()
+                          ? nullptr
+                          : credential.email.value().c_str();
+  const char *secret = !credential.secret.has_value()
+                           ? nullptr
+                           : credential.secret.value().c_str();
+  const char *id_token = !credential.id_token.has_value()
+                             ? nullptr
+                             : credential.id_token.value().c_str();
+  const char *access_token = !credential.access_token.has_value()
+                                 ? nullptr
+                                 : credential.access_token.value().c_str();
+  const char *raw_nonce = !credential.raw_nonce.has_value()
+                              ? nullptr
+                              : credential.raw_nonce.value().c_str();
+
   if (credential.provider_id == "password") {
-    if (!credential.email.has_value() || !credential.secret.has_value()) {
+    if (!email || !secret) {
       return false;
     }
 
-    *out = firebase::auth::EmailAuthProvider::GetCredential(
-        credential.email.value().c_str(), credential.secret.value().c_str());
+    *out = firebase::auth::EmailAuthProvider::GetCredential(email, secret);
+    return true;
+  } else if (credential.provider_id == "google.com") {
+    // It accepts idToken or accessToken
+    if (!id_token && !access_token) {
+      return false;
+    }
+
+    *out = firebase::auth::GoogleAuthProvider::GetCredential(id_token,
+                                                             access_token);
 
     return true;
-  }
-
-  if (credential.provider_id == "google.com") {
-    // It accepts idToken or accessToken
-    if (!credential.id_token.has_value() &&
-        !credential.access_token.has_value()) {
+  } else { // Generic OAuth
+    if (!id_token) {
       return false;
     }
 
-    *out = firebase::auth::GoogleAuthProvider::GetCredential(
-        !credential.id_token.has_value() ? nullptr
-                                         : credential.id_token.value().c_str(),
-        !credential.access_token.has_value()
-            ? nullptr
-            : credential.access_token.value().c_str());
+    if (raw_nonce != nullptr) {
+      *out = firebase::auth::OAuthProvider::GetCredential(
+          provider_id, id_token, raw_nonce, access_token);
+    } else {
+      // access token cannot be null here
+      if (!access_token) {
+        return false;
+      }
+      *out = firebase::auth::OAuthProvider::GetCredential(provider_id, id_token,
+                                                          access_token);
+    }
 
     return true;
   }
